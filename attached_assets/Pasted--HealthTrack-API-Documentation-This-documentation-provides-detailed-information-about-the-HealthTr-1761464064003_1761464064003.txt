@@ -1,0 +1,239 @@
+# HealthTrack API Documentation
+
+This documentation provides detailed information about the HealthTrack API.
+
+## Authentication
+
+The HealthTrack API uses JSON Web Tokens (JWT) for authentication. To access protected endpoints, you need to include an `Authorization` header with the value `Bearer <token>` in your requests.
+
+You can obtain a JWT by registering a new user or logging in.
+
+### Register a new user
+
+- **Endpoint:** `POST /auth/register`
+- **Description:** Creates a new user account.
+- **Request Body:**
+  ```json
+  {
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "password": "yourpassword",
+    "age": 30
+  }
+  ```
+- **Success Response (201):**
+  ```json
+  {
+    "message": "Registered",
+    "token": "your.jwt.token",
+    "user": {
+      "_id": "60d5f2c5c5b5c5b5c5b5c5b5",
+      "name": "John Doe",
+      "email": "john.doe@example.com",
+      "age": 30
+    }
+  }
+  ```
+- **Error Response (400):**
+  ```json
+  {
+    "message": "Email and password required"
+  }
+  ```
+  ```json
+  {
+    "message": "Email already registered"
+  }
+  ```
+
+### Login
+
+- **Endpoint:** `POST /auth/login`
+- **Description:** Logs in a user and returns a JWT.
+- **Request Body:**
+  ```json
+  {
+    "email": "john.doe@example.com",
+    "password": "yourpassword"
+  }
+  ```
+- **Success Response (200):**
+  The API sets a secure, HTTP-only cookie named `token` containing the JWT and redirects to `/dashboard`.
+- **Error Response (401):**
+  `Unauthorized`
+
+### Google OAuth 2.0
+
+- **Endpoint:** `GET /auth/google`
+- **Description:** Initiates the Google OAuth 2.0 authentication flow.
+- **Endpoint:** `GET /auth/google/callback`
+- **Description:** Handles the callback from Google after successful authentication. The API sets a secure, HTTP-only cookie named `token` containing the JWT and redirects to `/dashboard`.
+
+## Medications
+
+### Add a new medication
+
+- **Endpoint:** `POST /medications`
+- **Authentication:** Required
+- **Description:** Adds a new medication record for the authenticated user.
+- **Request Body:**
+  ```json
+  {
+    "name": "Ibuprofen",
+    "dosage": "200mg",
+    "frequency": "Twice a day",
+    "instructions": "Take with food"
+  }
+  ```
+- **Success Response (201):**
+  ```json
+  {
+    "message": "Medication added",
+    "data": {
+      "_id": "60d5f2c5c5b5c5b5c5b5c5b6",
+      "user": "60d5f2c5c5b5c5b5c5b5c5b5",
+      "name": "Ibuprofen",
+      "dosage": "200mg",
+      "frequency": "Twice a day",
+      "instructions": "Take with food"
+    }
+  }
+  ```
+
+### List all medications
+
+- **Endpoint:** `GET /medications`
+- **Authentication:** Required
+- **Description:** Retrieves a list of all medications for the authenticated user.
+- **Success Response (200):**
+  ```json
+  {
+    "message": "Medications",
+    "data": [
+      {
+        "_id": "60d5f2c5c5b5c5b5c5b5c5b6",
+        "user": "60d5f2c5c5b5c5b5c5b5c5b5",
+        "name": "Ibuprofen",
+        "dosage": "200mg",
+        "frequency": "Twice a day",
+        "instructions": "Take with food"
+      }
+    ]
+  }
+  ```
+
+### Get a specific medication
+
+- **Endpoint:** `GET /medications/:id`
+- **Authentication:** Required
+- **Description:** Retrieves a single medication by its ID.
+- **Success Response (200):**
+  ```json
+  {
+    "data": {
+      "_id": "60d5f2c5c5b5c5b5c5b5c5b6",
+      "user": "60d5f2c5c5b5c5b5c5b5c5b5",
+      "name": "Ibuprofen",
+      "dosage": "200mg",
+      "frequency": "Twice a day",
+      "instructions": "Take with food"
+    }
+  }
+  ```
+- **Error Response (404):**
+  ```json
+  {
+    "message": "Not found"
+  }
+  ```
+
+## Health Metrics
+
+### Add a new health metric
+
+- **Endpoint:** `POST /metrics`
+- **Authentication:** Required
+- **Description:** Adds a new health metric record for the authenticated user.
+- **Request Body:**
+  - For blood pressure:
+    ```json
+    {
+      "type": "blood-pressure",
+      "systolic": 120,
+      "diastolic": 80,
+      "unit": "mmHg"
+    }
+    ```
+  - For other metrics:
+    ```json
+    {
+      "type": "heart-rate",
+      "value": 75,
+      "unit": "bpm"
+    }
+    ```
+- **Success Response (201):**
+  ```json
+  {
+    "message": "Health metric added successfully",
+    "data": {
+      "_id": "60d5f2c5c5b5c5b5c5b5c5b7",
+      "user": "60d5f2c5c5b5c5b5c5b5c5b5",
+      "type": "heart-rate",
+      "value": 75,
+      "unit": "bpm"
+    }
+  }
+  ```
+
+### Get all health metrics
+
+- **Endpoint:** `GET /metrics`
+- **Authentication:** Required
+- **Description:** Retrieves a list of all health metrics for the authenticated user.
+- **Success Response (200):**
+  ```json
+  {
+    "message": "Metrics retrieved",
+    "data": [
+      {
+        "_id": "60d5f2c5c5b5c5b5c5b5c5b7",
+        "user": "60d5f2c5c5b5c5b5c5b5c5b5",
+        "type": "heart-rate",
+        "value": 75,
+        "unit": "bpm"
+      }
+    ]
+  }
+  ```
+
+### Get health metric history
+
+- **Endpoint:** `GET /metrics/history`
+- **Authentication:** Required
+- **Description:** Retrieves the history of all health metrics for the authenticated user, grouped by type.
+- **Success Response (200):**
+  ```json
+  {
+    "message": "All metric history",
+    "data": {
+      "blood-pressure": [
+        {
+          "type": "blood-pressure",
+          "date": "2025-10-26",
+          "systolic": 120,
+          "diastolic": 80,
+          "unit": "mmHg"
+        }
+      ],
+      "heart-rate": [
+        {
+          "type": "heart-rate",
+          "date": "2025-10-26",
+          "value": 75,
+          "unit": "bpm"
+        }
+      ]
+    }
+  }
+  ```
