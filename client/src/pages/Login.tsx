@@ -97,11 +97,13 @@ export default function Login() {
 
         <div className="mt-6 text-center text-sm">
           <span className="text-muted-foreground">Don't have an account? </span>
-          <Link href="/register">
-            <a className="text-primary font-medium hover:underline" data-testid="link-register">
-              Sign up
-            </a>
-          </Link>
+          <button 
+            onClick={() => setLocation("/register")} 
+            className="text-primary font-medium hover:underline"
+            data-testid="link-register"
+          >
+            Sign up
+          </button>
         </div>
       </Card>
     </div>

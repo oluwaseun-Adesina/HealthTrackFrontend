@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Activity, Pill, BarChart3, User, LogOut } from "lucide-react";
+import { Activity, Pill, BarChart3, User, LogOut, AlertCircle } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import ThemeToggle from "@/components/ThemeToggle";
 import StatCard from "@/components/StatCard";
 import MedicationCard from "@/components/MedicationCard";
@@ -22,7 +23,7 @@ import AddMedicationDialog from "@/components/AddMedicationDialog";
 import AddMetricDialog from "@/components/AddMetricDialog";
 import MetricChart from "@/components/MetricChart";
 import EmptyState from "@/components/EmptyState";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { logout, getAuthUser, isAuthenticated } from "@/lib/auth";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -46,7 +47,7 @@ export default function Dashboard() {
     }
   }, [setLocation]);
 
-  const { data: medicationsData, isLoading: medicationsLoading } = useQuery({
+  const { data: medicationsData, isLoading: medicationsLoading, error: medicationsError, refetch: refetchMedications } = useQuery({
     queryKey: ['medications'],
     queryFn: async () => {
       const response = await api.getMedications();
@@ -54,7 +55,7 @@ export default function Dashboard() {
     },
   });
 
-  const { data: metricsData, isLoading: metricsLoading } = useQuery({
+  const { data: metricsData, isLoading: metricsLoading, error: metricsError, refetch: refetchMetrics } = useQuery({
     queryKey: ['metrics'],
     queryFn: async () => {
       const response = await api.getMetrics();
@@ -62,7 +63,7 @@ export default function Dashboard() {
     },
   });
 
-  const { data: metricHistoryData } = useQuery({
+  const { data: metricHistoryData, error: historyError } = useQuery({
     queryKey: ['metrics-history'],
     queryFn: async () => {
       const response = await api.getMetricHistory();
@@ -80,6 +81,14 @@ export default function Dashboard() {
       });
     },
     onError: (error: any) => {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        toast({
+          title: "Session expired",
+          description: "Please log in again",
+          variant: "destructive",
+        });
+        return;
+      }
       toast({
         title: "Failed to add medication",
         description: error.message,
@@ -99,6 +108,14 @@ export default function Dashboard() {
       });
     },
     onError: (error: any) => {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        toast({
+          title: "Session expired",
+          description: "Please log in again",
+          variant: "destructive",
+        });
+        return;
+      }
       toast({
         title: "Failed to add metric",
         description: error.message,
@@ -148,6 +165,33 @@ export default function Dashboard() {
   if (!isAuthenticated()) {
     return null;
   }
+
+  const isAuthError = (error: any) => error instanceof ApiError && (error.status === 401 || error.status === 403);
+
+  const ErrorAlert = ({ error, onRetry }: { error: any; onRetry: () => void }) => {
+    if (isAuthError(error)) {
+      return (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Your session has expired. Redirecting to login...
+          </AlertDescription>
+        </Alert>
+      );
+    }
+
+    return (
+      <Alert variant="destructive" className="mb-4">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription className="flex items-center justify-between">
+          <span>Failed to load data: {error?.message || 'Unknown error'}</span>
+          <Button variant="outline" size="sm" onClick={onRetry}>
+            Retry
+          </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  };
 
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
@@ -218,28 +262,47 @@ export default function Dashboard() {
                   <p className="text-muted-foreground">Here's your health overview for today</p>
                 </div>
 
+                {(medicationsError || metricsError) && !isAuthError(medicationsError) && !isAuthError(metricsError) && (
+                  <ErrorAlert 
+                    error={medicationsError || metricsError} 
+                    onRetry={() => {
+                      if (medicationsError) refetchMedications();
+                      if (metricsError) refetchMetrics();
+                    }}
+                  />
+                )}
+
+                {(isAuthError(medicationsError) || isAuthError(metricsError)) && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Your session has expired. Redirecting to login...
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <StatCard 
                     title="Medications" 
-                    value={medications.length} 
+                    value={medicationsError ? "--" : medications.length} 
                     icon={Pill} 
                     description="Active prescriptions" 
                   />
                   <StatCard 
                     title="Heart Rate" 
-                    value={latestHeartRate ? `${latestHeartRate.value}` : "--"} 
+                    value={metricsError ? "--" : latestHeartRate ? `${latestHeartRate.value}` : "--"} 
                     icon={Activity} 
                     description={latestHeartRate ? latestHeartRate.unit : "No data"} 
                   />
                   <StatCard 
                     title="Blood Pressure" 
-                    value={latestBloodPressure ? `${latestBloodPressure.systolic}/${latestBloodPressure.diastolic}` : "--"} 
+                    value={metricsError ? "--" : latestBloodPressure ? `${latestBloodPressure.systolic}/${latestBloodPressure.diastolic}` : "--"} 
                     icon={BarChart3} 
                     description={latestBloodPressure ? latestBloodPressure.unit : "No data"} 
                   />
                   <StatCard 
                     title="Metrics Tracked" 
-                    value={metrics.length} 
+                    value={metricsError ? "--" : metrics.length} 
                     icon={BarChart3} 
                     description="Total records" 
                   />
@@ -253,6 +316,15 @@ export default function Dashboard() {
                     </div>
                     {medicationsLoading ? (
                       <div className="text-center py-12 text-muted-foreground">Loading...</div>
+                    ) : isAuthError(medicationsError) ? (
+                      <div className="text-center py-12 text-muted-foreground">
+                        Session expired. Redirecting...
+                      </div>
+                    ) : medicationsError ? (
+                      <div className="text-center py-12">
+                        <p className="text-destructive mb-4">Failed to load medications</p>
+                        <Button onClick={() => refetchMedications()}>Retry</Button>
+                      </div>
                     ) : medications.length > 0 ? (
                       <div className="space-y-4">
                         {medications.slice(0, 2).map((med: any) => (
@@ -281,6 +353,15 @@ export default function Dashboard() {
                     </div>
                     {metricsLoading ? (
                       <div className="text-center py-12 text-muted-foreground">Loading...</div>
+                    ) : isAuthError(metricsError) || isAuthError(historyError) ? (
+                      <div className="text-center py-12 text-muted-foreground">
+                        Session expired. Redirecting...
+                      </div>
+                    ) : metricsError || historyError ? (
+                      <div className="text-center py-12">
+                        <p className="text-destructive mb-4">Failed to load metrics</p>
+                        <Button onClick={() => refetchMetrics()}>Retry</Button>
+                      </div>
                     ) : heartRateHistory.length > 0 ? (
                       <MetricChart title="" data={heartRateHistory} dataKey="value" />
                     ) : (
@@ -305,8 +386,27 @@ export default function Dashboard() {
                   <AddMedicationDialog onAdd={handleAddMedication} />
                 </div>
 
+                {medicationsError && !isAuthError(medicationsError) && <ErrorAlert error={medicationsError} onRetry={refetchMedications} />}
+                {isAuthError(medicationsError) && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Your session has expired. Redirecting to login...
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 {medicationsLoading ? (
                   <div className="text-center py-12 text-muted-foreground">Loading medications...</div>
+                ) : isAuthError(medicationsError) ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    Session expired. Redirecting...
+                  </div>
+                ) : medicationsError ? (
+                  <div className="text-center py-12">
+                    <p className="text-destructive mb-4">Failed to load medications</p>
+                    <Button onClick={() => refetchMedications()}>Retry</Button>
+                  </div>
                 ) : medications.length > 0 ? (
                   <div className="space-y-4">
                     {medications.map((med: any) => (
@@ -343,16 +443,26 @@ export default function Dashboard() {
                   <AddMetricDialog onAdd={handleAddMetric} />
                 </div>
 
+                {metricsError && !isAuthError(metricsError) && <ErrorAlert error={metricsError} onRetry={refetchMetrics} />}
+                {isAuthError(metricsError) && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Your session has expired. Redirecting to login...
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <StatCard 
                     title="Latest Heart Rate" 
-                    value={latestHeartRate ? `${latestHeartRate.value}` : "--"} 
+                    value={metricsError ? "--" : latestHeartRate ? `${latestHeartRate.value}` : "--"} 
                     icon={Activity} 
                     description={latestHeartRate ? `${latestHeartRate.unit} • ${new Date(latestHeartRate.date).toLocaleDateString()}` : "No data"} 
                   />
                   <StatCard 
                     title="Latest Blood Pressure" 
-                    value={latestBloodPressure ? `${latestBloodPressure.systolic}/${latestBloodPressure.diastolic}` : "--"} 
+                    value={metricsError ? "--" : latestBloodPressure ? `${latestBloodPressure.systolic}/${latestBloodPressure.diastolic}` : "--"} 
                     icon={BarChart3} 
                     description={latestBloodPressure ? `${latestBloodPressure.unit} • ${new Date(latestBloodPressure.date).toLocaleDateString()}` : "No data"} 
                   />
@@ -360,6 +470,15 @@ export default function Dashboard() {
 
                 {metricsLoading ? (
                   <div className="text-center py-12 text-muted-foreground">Loading metrics...</div>
+                ) : isAuthError(metricsError) || isAuthError(historyError) ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    Session expired. Redirecting...
+                  </div>
+                ) : (metricsError || historyError) ? (
+                  <div className="text-center py-12">
+                    <p className="text-destructive mb-4">Failed to load metrics</p>
+                    <Button onClick={() => refetchMetrics()}>Retry</Button>
+                  </div>
                 ) : (heartRateHistory.length > 0 || bloodPressureHistory.length > 0) ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     {heartRateHistory.length > 0 && (

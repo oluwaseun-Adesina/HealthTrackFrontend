@@ -64,9 +64,12 @@ export default function AddMetricDialog({ onAdd }: AddMetricDialogProps) {
           Add Metric
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" aria-describedby="metric-dialog-description">
         <DialogHeader>
           <DialogTitle>Add Health Metric</DialogTitle>
+          <p id="metric-dialog-description" className="sr-only">
+            Fill out the form to record a new health metric measurement
+          </p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">

@@ -14,6 +14,12 @@ export class ApiError extends Error {
   }
 }
 
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  onUnauthorized = handler;
+}
+
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const text = await response.text();
@@ -24,7 +30,16 @@ async function handleResponse<T>(response: Response): Promise<T> {
     } catch {
       // Use text as-is
     }
-    throw new ApiError(response.status, message);
+    
+    const error = new ApiError(response.status, message);
+    
+    if (response.status === 401 || response.status === 403) {
+      if (onUnauthorized) {
+        onUnauthorized();
+      }
+    }
+    
+    throw error;
   }
 
   const contentType = response.headers.get('content-type');

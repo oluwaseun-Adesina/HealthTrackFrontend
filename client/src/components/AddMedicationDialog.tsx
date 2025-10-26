@@ -48,9 +48,12 @@ export default function AddMedicationDialog({ onAdd }: AddMedicationDialogProps)
           Add Medication
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" aria-describedby="medication-dialog-description">
         <DialogHeader>
           <DialogTitle>Add New Medication</DialogTitle>
+          <p id="medication-dialog-description" className="sr-only">
+            Fill out the form to add a new medication to your health tracker
+          </p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">

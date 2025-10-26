@@ -132,11 +132,13 @@ export default function Register() {
 
         <div className="mt-6 text-center text-sm">
           <span className="text-muted-foreground">Already have an account? </span>
-          <Link href="/login">
-            <a className="text-primary font-medium hover:underline" data-testid="link-login">
-              Sign in
-            </a>
-          </Link>
+          <button 
+            onClick={() => setLocation("/login")} 
+            className="text-primary font-medium hover:underline"
+            data-testid="link-login"
+          >
+            Sign in
+          </button>
         </div>
       </Card>
     </div>
