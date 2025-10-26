@@ -6,23 +6,46 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { api, ApiError } from "@/lib/api";
+import { setAuthToken, setAuthUser } from "@/lib/auth";
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Login submitted:', formData);
-    toast({
-      title: "Login successful",
-      description: "Welcome back to HealthTrack!",
-    });
-    setLocation("/dashboard");
+    setIsLoading(true);
+
+    try {
+      const response = await api.login(formData);
+      
+      if (response.token && response.user) {
+        setAuthToken(response.token);
+        setAuthUser(response.user);
+        
+        toast({
+          title: "Login successful",
+          description: "Welcome back to HealthTrack!",
+        });
+        
+        setLocation("/dashboard");
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      toast({
+        title: "Login failed",
+        description: error instanceof ApiError ? error.message : "Please check your credentials and try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -48,6 +71,7 @@ export default function Login() {
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               required
+              disabled={isLoading}
               data-testid="input-email"
             />
           </div>
@@ -61,12 +85,13 @@ export default function Login() {
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               required
+              disabled={isLoading}
               data-testid="input-password"
             />
           </div>
 
-          <Button type="submit" className="w-full" data-testid="button-login">
-            Sign In
+          <Button type="submit" className="w-full" disabled={isLoading} data-testid="button-login">
+            {isLoading ? "Signing in..." : "Sign In"}
           </Button>
         </form>
 

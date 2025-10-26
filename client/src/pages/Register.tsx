@@ -6,10 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { api, ApiError } from "@/lib/api";
+import { setAuthToken, setAuthUser } from "@/lib/auth";
 
 export default function Register() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -17,14 +20,41 @@ export default function Register() {
     age: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Registration submitted:', formData);
-    toast({
-      title: "Account created",
-      description: "Welcome to HealthTrack! Let's get started.",
-    });
-    setLocation("/dashboard");
+    setIsLoading(true);
+
+    try {
+      const payload = {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        ...(formData.age && { age: parseInt(formData.age) }),
+      };
+
+      const response = await api.register(payload);
+      
+      if (response.token && response.user) {
+        setAuthToken(response.token);
+        setAuthUser(response.user);
+        
+        toast({
+          title: "Account created",
+          description: "Welcome to HealthTrack! Let's get started.",
+        });
+        
+        setLocation("/dashboard");
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      toast({
+        title: "Registration failed",
+        description: error instanceof ApiError ? error.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -49,6 +79,7 @@ export default function Register() {
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
+              disabled={isLoading}
               data-testid="input-name"
             />
           </div>
@@ -62,6 +93,7 @@ export default function Register() {
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               required
+              disabled={isLoading}
               data-testid="input-email"
             />
           </div>
@@ -75,6 +107,7 @@ export default function Register() {
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               required
+              disabled={isLoading}
               data-testid="input-password"
             />
           </div>
@@ -87,12 +120,13 @@ export default function Register() {
               placeholder="30"
               value={formData.age}
               onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+              disabled={isLoading}
               data-testid="input-age"
             />
           </div>
 
-          <Button type="submit" className="w-full" data-testid="button-register">
-            Create Account
+          <Button type="submit" className="w-full" disabled={isLoading} data-testid="button-register">
+            {isLoading ? "Creating account..." : "Create Account"}
           </Button>
         </form>
 
