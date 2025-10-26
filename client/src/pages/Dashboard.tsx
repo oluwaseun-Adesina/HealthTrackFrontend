@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { Activity, Pill, BarChart3, User, LogOut } from "lucide-react";
 import { useLocation } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
@@ -21,6 +22,10 @@ import AddMedicationDialog from "@/components/AddMedicationDialog";
 import AddMetricDialog from "@/components/AddMetricDialog";
 import MetricChart from "@/components/MetricChart";
 import EmptyState from "@/components/EmptyState";
+import { api } from "@/lib/api";
+import { logout, getAuthUser, isAuthenticated } from "@/lib/auth";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import emptyMedImage from "@assets/generated_images/Empty_medication_list_illustration_050de3ea.png";
 import emptyMetricImage from "@assets/generated_images/Empty_metrics_illustration_464528ed.png";
 
@@ -32,39 +37,106 @@ const menuItems = [
 
 export default function Dashboard() {
   const [location, setLocation] = useLocation();
-  const [medications, setMedications] = useState([
-    {
-      id: "1",
-      name: "Ibuprofen",
-      dosage: "200mg",
-      frequency: "Twice a day",
-      instructions: "Take with food",
-    },
-    {
-      id: "2",
-      name: "Vitamin D",
-      dosage: "1000 IU",
-      frequency: "Once daily",
-      instructions: "Take in the morning",
-    },
-  ]);
+  const { toast } = useToast();
+  const user = getAuthUser();
 
-  const [metrics] = useState([
-    { date: "Oct 22", value: 72 },
-    { date: "Oct 23", value: 75 },
-    { date: "Oct 24", value: 70 },
-    { date: "Oct 25", value: 73 },
-    { date: "Oct 26", value: 75 },
-  ]);
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      setLocation("/login");
+    }
+  }, [setLocation]);
+
+  const { data: medicationsData, isLoading: medicationsLoading } = useQuery({
+    queryKey: ['medications'],
+    queryFn: async () => {
+      const response = await api.getMedications();
+      return response.data || [];
+    },
+  });
+
+  const { data: metricsData, isLoading: metricsLoading } = useQuery({
+    queryKey: ['metrics'],
+    queryFn: async () => {
+      const response = await api.getMetrics();
+      return response.data || [];
+    },
+  });
+
+  const { data: metricHistoryData } = useQuery({
+    queryKey: ['metrics-history'],
+    queryFn: async () => {
+      const response = await api.getMetricHistory();
+      return response.data || {};
+    },
+  });
+
+  const addMedicationMutation = useMutation({
+    mutationFn: (data: any) => api.addMedication(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['medications'] });
+      toast({
+        title: "Medication added",
+        description: "Your medication has been added successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to add medication",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const addMetricMutation = useMutation({
+    mutationFn: (data: any) => api.addMetric(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['metrics'] });
+      queryClient.invalidateQueries({ queryKey: ['metrics-history'] });
+      toast({
+        title: "Metric added",
+        description: "Your health metric has been recorded",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to add metric",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleLogout = () => {
-    console.log('Logging out');
+    logout();
     setLocation("/");
   };
 
   const handleAddMedication = (medication: any) => {
-    setMedications([...medications, { ...medication, id: Date.now().toString() }]);
+    addMedicationMutation.mutate(medication);
   };
+
+  const handleAddMetric = (metric: any) => {
+    addMetricMutation.mutate(metric);
+  };
+
+  const formatChartData = (history: any, type: string) => {
+    if (!history || !history[type]) return [];
+    
+    return history[type].map((item: any) => ({
+      date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      value: item.value || item.systolic,
+    })).slice(-7);
+  };
+
+  const medications = medicationsData || [];
+  const metrics = metricsData || [];
+  
+  const heartRateHistory = formatChartData(metricHistoryData, 'heart-rate');
+  const bloodPressureHistory = formatChartData(metricHistoryData, 'blood-pressure');
+
+  const latestHeartRate = metrics.find((m: any) => m.type === 'heart-rate');
+  const latestBloodPressure = metrics.find((m: any) => m.type === 'blood-pressure');
 
   const sidebarStyle = {
     "--sidebar-width": "16rem",
@@ -72,6 +144,10 @@ export default function Dashboard() {
   };
 
   const currentPage = location.split('/')[1] || 'dashboard';
+
+  if (!isAuthenticated()) {
+    return null;
+  }
 
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
@@ -136,15 +212,37 @@ export default function Dashboard() {
             {currentPage === 'dashboard' && (
               <div className="max-w-7xl mx-auto space-y-8">
                 <div>
-                  <h1 className="text-4xl font-bold font-serif mb-2">Welcome back, John</h1>
+                  <h1 className="text-4xl font-bold font-serif mb-2">
+                    Welcome back, {user?.name || 'User'}
+                  </h1>
                   <p className="text-muted-foreground">Here's your health overview for today</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <StatCard title="Medications" value={medications.length} icon={Pill} description="Active prescriptions" />
-                  <StatCard title="Heart Rate" value="75" icon={Activity} description="Last: Today" />
-                  <StatCard title="Blood Pressure" value="120/80" icon={BarChart3} description="mmHg" />
-                  <StatCard title="Metrics Tracked" value="12" icon={BarChart3} description="This month" />
+                  <StatCard 
+                    title="Medications" 
+                    value={medications.length} 
+                    icon={Pill} 
+                    description="Active prescriptions" 
+                  />
+                  <StatCard 
+                    title="Heart Rate" 
+                    value={latestHeartRate ? `${latestHeartRate.value}` : "--"} 
+                    icon={Activity} 
+                    description={latestHeartRate ? latestHeartRate.unit : "No data"} 
+                  />
+                  <StatCard 
+                    title="Blood Pressure" 
+                    value={latestBloodPressure ? `${latestBloodPressure.systolic}/${latestBloodPressure.diastolic}` : "--"} 
+                    icon={BarChart3} 
+                    description={latestBloodPressure ? latestBloodPressure.unit : "No data"} 
+                  />
+                  <StatCard 
+                    title="Metrics Tracked" 
+                    value={metrics.length} 
+                    icon={BarChart3} 
+                    description="Total records" 
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -153,10 +251,18 @@ export default function Dashboard() {
                       <h2 className="text-2xl font-semibold">Recent Medications</h2>
                       <AddMedicationDialog onAdd={handleAddMedication} />
                     </div>
-                    {medications.length > 0 ? (
+                    {medicationsLoading ? (
+                      <div className="text-center py-12 text-muted-foreground">Loading...</div>
+                    ) : medications.length > 0 ? (
                       <div className="space-y-4">
-                        {medications.slice(0, 2).map((med) => (
-                          <MedicationCard key={med.id} {...med} />
+                        {medications.slice(0, 2).map((med: any) => (
+                          <MedicationCard 
+                            key={med._id} 
+                            name={med.name}
+                            dosage={med.dosage}
+                            frequency={med.frequency}
+                            instructions={med.instructions}
+                          />
                         ))}
                       </div>
                     ) : (
@@ -171,10 +277,12 @@ export default function Dashboard() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h2 className="text-2xl font-semibold">Heart Rate Trend</h2>
-                      <AddMetricDialog onAdd={(metric) => console.log('Metric added:', metric)} />
+                      <AddMetricDialog onAdd={handleAddMetric} />
                     </div>
-                    {metrics.length > 0 ? (
-                      <MetricChart title="" data={metrics} dataKey="value" />
+                    {metricsLoading ? (
+                      <div className="text-center py-12 text-muted-foreground">Loading...</div>
+                    ) : heartRateHistory.length > 0 ? (
+                      <MetricChart title="" data={heartRateHistory} dataKey="value" />
                     ) : (
                       <EmptyState
                         title="No metrics recorded"
@@ -197,17 +305,19 @@ export default function Dashboard() {
                   <AddMedicationDialog onAdd={handleAddMedication} />
                 </div>
 
-                {medications.length > 0 ? (
+                {medicationsLoading ? (
+                  <div className="text-center py-12 text-muted-foreground">Loading medications...</div>
+                ) : medications.length > 0 ? (
                   <div className="space-y-4">
-                    {medications.map((med) => (
+                    {medications.map((med: any) => (
                       <MedicationCard 
-                        key={med.id} 
-                        {...med}
-                        onEdit={() => console.log('Edit', med.id)}
-                        onDelete={() => {
-                          console.log('Delete', med.id);
-                          setMedications(medications.filter(m => m.id !== med.id));
-                        }}
+                        key={med._id} 
+                        name={med.name}
+                        dosage={med.dosage}
+                        frequency={med.frequency}
+                        instructions={med.instructions}
+                        onEdit={() => console.log('Edit', med._id)}
+                        onDelete={() => console.log('Delete', med._id)}
                       />
                     ))}
                   </div>
@@ -230,29 +340,39 @@ export default function Dashboard() {
                     <h1 className="text-4xl font-bold font-serif mb-2">Health Metrics</h1>
                     <p className="text-muted-foreground">Track and visualize your vital signs</p>
                   </div>
-                  <AddMetricDialog onAdd={(metric) => console.log('Metric added:', metric)} />
+                  <AddMetricDialog onAdd={handleAddMetric} />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <StatCard title="Latest Heart Rate" value="75" icon={Activity} description="bpm • Today" />
-                  <StatCard title="Latest Blood Pressure" value="120/80" icon={BarChart3} description="mmHg • Today" />
+                  <StatCard 
+                    title="Latest Heart Rate" 
+                    value={latestHeartRate ? `${latestHeartRate.value}` : "--"} 
+                    icon={Activity} 
+                    description={latestHeartRate ? `${latestHeartRate.unit} • ${new Date(latestHeartRate.date).toLocaleDateString()}` : "No data"} 
+                  />
+                  <StatCard 
+                    title="Latest Blood Pressure" 
+                    value={latestBloodPressure ? `${latestBloodPressure.systolic}/${latestBloodPressure.diastolic}` : "--"} 
+                    icon={BarChart3} 
+                    description={latestBloodPressure ? `${latestBloodPressure.unit} • ${new Date(latestBloodPressure.date).toLocaleDateString()}` : "No data"} 
+                  />
                 </div>
 
-                {metrics.length > 0 ? (
+                {metricsLoading ? (
+                  <div className="text-center py-12 text-muted-foreground">Loading metrics...</div>
+                ) : (heartRateHistory.length > 0 || bloodPressureHistory.length > 0) ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <MetricChart title="Heart Rate History" data={metrics} dataKey="value" />
-                    <MetricChart 
-                      title="Blood Pressure Trend" 
-                      data={[
-                        { date: "Oct 22", value: 118 },
-                        { date: "Oct 23", value: 120 },
-                        { date: "Oct 24", value: 119 },
-                        { date: "Oct 25", value: 121 },
-                        { date: "Oct 26", value: 120 },
-                      ]} 
-                      dataKey="value"
-                      color="hsl(var(--chart-2))"
-                    />
+                    {heartRateHistory.length > 0 && (
+                      <MetricChart title="Heart Rate History" data={heartRateHistory} dataKey="value" />
+                    )}
+                    {bloodPressureHistory.length > 0 && (
+                      <MetricChart 
+                        title="Blood Pressure Trend" 
+                        data={bloodPressureHistory} 
+                        dataKey="value"
+                        color="hsl(var(--chart-2))"
+                      />
+                    )}
                   </div>
                 ) : (
                   <EmptyState
