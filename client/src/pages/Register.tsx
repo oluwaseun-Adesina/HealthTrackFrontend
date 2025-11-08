@@ -144,7 +144,8 @@ export default function Register() {
           variant="outline"
           className="w-full"
           onClick={() => {
-            window.location.href = 'https://healthtrack-backend-redj.onrender.com/api/v1/auth/google';
+            const redirectUrl = `${window.location.origin}/dashboard`;
+            window.location.href = `https://healthtrack-backend-redj.onrender.com/api/v1/auth/google?redirect=${encodeURIComponent(redirectUrl)}`;
           }}
           data-testid="button-google-signup"
         >
