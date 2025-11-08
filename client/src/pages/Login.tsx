@@ -109,8 +109,9 @@ export default function Login() {
           variant="outline"
           className="w-full"
           onClick={() => {
-            window.location.href = 'https://healthtrack-backend-redj.onrender.com/auth/google';
+            window.location.href = 'https://healthtrack-backend-redj.onrender.com/api/v1/auth/google';
           }}
+          data-testid="button-google-signin"
         >
           <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
             <path
